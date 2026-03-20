@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedTrack - Seguimiento y Temas Rentables</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 600; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .loader { border-top-color: #3b82f6; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .card-high-yield { transition: all 0.3s ease; }
+        .card-high-yield:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 glass border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <i class="fas fa-stethoscope text-white text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 leading-none">MedTrack</h1>
+                <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Análisis Estadístico RM</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="toggleUploadModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-200">
+                <i class="fas fa-plus mr-2"></i> Nuevo Simulacro
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        
+        <!-- Category Tabs -->
+        <div class="flex border-b border-slate-200 gap-6 overflow-x-auto no-scrollbar">
+            <button onclick="switchCategory('ENARM')" id="btn-ENARM" class="category-tab px-4 py-3 text-slate-500 hover:text-blue-600 transition-all tab-active">ENARM</button>
+            <button onclick="switchCategory('ENAM')" id="btn-ENAM" class="category-tab px-4 py-3 text-slate-500 hover:text-blue-600 transition-all">ENAM</button>
+            <button onclick="switchCategory('ENCAPS')" id="btn-ENCAPS" class="category-tab px-4 py-3 text-slate-500 hover:text-blue-600 transition-all">ENCAPS</button>
+        </div>
+
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-500 font-bold uppercase">Promedio General</p>
+                <h3 class="text-3xl font-black text-slate-900" id="stat-avg">72.4%</h3>
+                <div class="mt-2 flex items-center gap-1 text-green-600 text-xs font-bold" id="stat-trend-avg">
+                    <i class="fas fa-arrow-up"></i> +4.2% vs ant.
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <p class="text-xs text-slate-500 font-bold uppercase">Último Puntaje</p>
+                <h3 class="text-3xl font-black text-slate-900" id="stat-last">16/20</h3>
+                <p class="text-[10px] text-slate-400 mt-2 font-medium" id="stat-last-date">Hace 2 días</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-blue-500">
+                <p class="text-xs text-slate-500 font-bold uppercase">Meta de Ingreso</p>
+                <h3 class="text-3xl font-black text-blue-600" id="stat-target">75%</h3>
+                <p class="text-[10px] text-slate-400 mt-2">Basado en cortes históricos</p>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-l-4 border-l-orange-400">
+                <p class="text-xs text-slate-500 font-bold uppercase">Probabilidad de Ingreso</p>
+                <h3 class="text-3xl font-black text-slate-900" id="stat-prob">82%</h3>
+                <p class="text-[10px] text-slate-400 mt-2">Calculado por IA</p>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left: Stats and Progress (8 columns) -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Chart Area -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="font-black text-slate-800 uppercase text-sm tracking-widest">Evolución de Rendimiento</h4>
+                        <div class="flex gap-2">
+                            <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Acierto (%)</span>
+                        </div>
+                    </div>
+                    <div class="h-[300px]">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- High Yield Priority Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h4 class="font-black text-slate-800 uppercase text-sm tracking-widest">Hoja de Ruta: Temas Rentables</h4>
+                            <p class="text-xs text-slate-500 mt-1">Los 5 temas más preguntados por curso (Estadística 2000-2025)</p>
+                        </div>
+                        <select id="yield-selector" onchange="renderHighYield()" class="bg-slate-50 border border-slate-200 text-xs font-bold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="Cirugía General">Cirugía General</option>
+                            <option value="Pediatría">Pediatría</option>
+                            <option value="Obstetricia">Obstetricia</option>
+                            <option value="Ginecología">Ginecología</option>
+                            <option value="Neonatología">Neonatología</option>
+                            <option value="Neumología">Neumología</option>
+                            <option value="Infectología">Infectología</option>
+                            <option value="Endocrinología">Endocrinología</option>
+                        </select>
+                    </div>
+                    
+                    <div id="yield-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- JS populated items -->
+                    </div>
+                </div>
+
+                <!-- History Table -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <h4 class="font-black text-slate-800 uppercase text-sm tracking-widest mb-6">Registro de Simulacros</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500 uppercase text-[10px] font-black">
+                                <tr>
+                                    <th class="px-4 py-3">Simulacro</th>
+                                    <th class="px-4 py-3">Puntaje</th>
+                                    <th class="px-4 py-3">% Éxito</th>
+                                    <th class="px-4 py-3">Estado</th>
+                                    <th class="px-4 py-3 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="simulacros-body" class="divide-y divide-slate-100">
+                                <!-- JS content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: AI and Distribution (4 columns) -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- AI Insight -->
+                <div class="bg-slate-900 p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
+                    <div class="relative z-10">
+                        <div class="flex items-center gap-3 mb-6">
+                            <div class="bg-blue-500/20 p-2 rounded-lg">
+                                <i class="fas fa-brain text-blue-400"></i>
+                            </div>
+                            <h4 class="font-bold tracking-tight">Análisis Estratégico</h4>
+                        </div>
+                        <div id="ai-insight-text" class="text-slate-400 text-sm leading-relaxed mb-6 space-y-2">
+                            <p>¡Excelente progreso, doctor! Su dominio en <strong>Obstetricia</strong> es su mayor fortaleza actual. Sin embargo, los temas de <strong>Infectología</strong> tienen un peso histórico del 20% en el examen y su tendencia ahí es estable pero no creciente.</p>
+                            <p class="text-blue-400 font-bold">Consejo: Dedique 2 horas extra a "Hemorragias de la I Mitad" esta semana.</p>
+                        </div>
+                        <button onclick="runAIAnalysis()" id="ai-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 group">
+                            <span id="ai-btn-text">Actualizar Análisis</span>
+                            <div id="ai-loader" class="hidden loader rounded-full border-2 border-t-2 border-white/20 h-5 w-5"></div>
+                            <i class="fas fa-chevron-right text-xs opacity-0 group-hover:opacity-100 transition-all"></i>
+                        </button>
+                    </div>
+                    <div class="absolute -bottom-6 -right-6 text-9xl text-slate-800 font-black opacity-30 select-none">IA</div>
+                </div>
+
+                <!-- Radar Chart -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h4 class="font-black text-slate-800 uppercase text-sm tracking-widest mb-6 text-center">Distribución de Dominio</h4>
+                    <div class="h-[250px]">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                    <div class="mt-4 flex flex-wrap justify-center gap-3">
+                        <span class="text-[10px] font-bold px-2 py-1 bg-blue-100 text-blue-600 rounded">CIRU</span>
+                        <span class="text-[10px] font-bold px-2 py-1 bg-green-100 text-green-600 rounded">PEDIA</span>
+                        <span class="text-[10px] font-bold px-2 py-1 bg-red-100 text-red-600 rounded">GINECO</span>
+                        <span class="text-[10px] font-bold px-2 py-1 bg-orange-100 text-orange-600 rounded">MED</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for Upload -->
+    <div id="uploadModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Cargar Resultados</h3>
+                <button onclick="toggleUploadModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Excel Upload -->
+                <div class="p-8 border-2 border-dashed border-slate-200 rounded-2xl hover:border-blue-400 hover:bg-blue-50 transition-all text-center cursor-pointer relative group">
+                    <input type="file" id="excelInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".xlsx, .xls">
+                    <div class="bg-green-100 text-green-600 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                        <i class="fas fa-file-excel text-xl"></i>
+                    </div>
+                    <p class="text-sm font-bold text-slate-700">Subir Archivo Excel</p>
+                    <p class="text-xs text-slate-400 mt-1">Soporta formatos de seguimiento estándar</p>
+                </div>
+
+                <div class="flex items-center text-xs text-slate-400 font-bold uppercase">
+                    <span class="flex-grow border-t border-slate-100 mr-2"></span> O Entrada Manual <span class="flex-grow border-t border-slate-100 ml-2"></span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Nombre del Simulacro</label>
+                        <input type="text" id="manual-name" placeholder="Ej: RM 2025 - Sim 01" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Correctas</label>
+                        <input type="number" id="manual-correct" placeholder="75" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Total Preguntas</label>
+                        <input type="number" id="manual-total" value="100" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+
+                <button onclick="saveManualEntry()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all shadow-lg">Guardar Resultados</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Data Definitions (From your Stats File) ---
+        const HIGH_YIELD_STATS = {
+            "Cirugía General": [
+                { topic: "Patología apendicular", count: 40, weight: "Muy Alta" },
+                { topic: "Obstrucción intestinal", count: 39, weight: "Muy Alta" },
+                { topic: "Enfoque de Hernias", count: 38, weight: "Muy Alta" },
+                { topic: "Enfermedad diverticular", count: 26, weight: "Alta" },
+                { topic: "Cáncer gástrico", count: 22, weight: "Alta" }
+            ],
+            "Pediatría": [
+                { topic: "Exantemáticas", count: 44, weight: "Muy Alta" },
+                { topic: "Misceláneas", count: 35, weight: "Muy Alta" },
+                { topic: "Crecimiento y desarrollo", count: 31, weight: "Alta" },
+                { topic: "Nutrición pediátrica", count: 31, weight: "Alta" },
+                { topic: "Diarrea aguda", count: 30, weight: "Alta" }
+            ],
+            "Obstetricia": [
+                { topic: "Hemorragias I mitad", count: 58, weight: "Muy Alta" },
+                { topic: "Epidemio/Control Prenatal", count: 51, weight: "Muy Alta" },
+                { topic: "Trastornos Hipertensivos", count: 46, weight: "Muy Alta" },
+                { topic: "Distocias", count: 37, weight: "Alta" },
+                { topic: "Hemorragias II mitad", count: 36, weight: "Alta" }
+            ],
+            "Ginecología": [
+                { topic: "Planificación familiar", count: 30, weight: "Muy Alta" },
+                { topic: "Miomatosis uterina", count: 27, weight: "Muy Alta" },
+                { topic: "Distopias e Incontinencia", count: 27, weight: "Alta" },
+                { topic: "Amenorreas", count: 24, weight: "Alta" },
+                { topic: "Climaterio y Menopausia", count: 24, weight: "Alta" }
+            ],
+            "Neonatología": [
+                { topic: "Enf. Hematológicas", count: 45, weight: "Muy Alta" },
+                { topic: "Sd. Dificultad Resp.", count: 38, weight: "Muy Alta" },
+                { topic: "Examen Físico", count: 30, weight: "Alta" },
+                { topic: "Sepsis neonatal", count: 27, weight: "Alta" },
+                { topic: "Recepción RN", count: 24, weight: "Alta" }
+            ],
+            "Neumología": [
+                { topic: "Neumonía (NAC)", count: 50, weight: "Muy Alta" },
+                { topic: "Tuberculosis (Perú)", count: 46, weight: "Muy Alta" },
+                { topic: "Asma", count: 38, weight: "Muy Alta" },
+                { topic: "Enf. de la pleura", count: 27, weight: "Alta" },
+                { topic: "Bases en Neumología", count: 26, weight: "Alta" }
+            ],
+            "Infectología": [
+                { topic: "Infecciones por Sistemas", count: 143, weight: "Extrema" },
+                { topic: "Infecciones Virales", count: 50, weight: "Muy Alta" },
+                { topic: "Infecciones Parasitarias", count: 47, weight: "Muy Alta" },
+                { topic: "Infecciones Bacterianas", count: 23, weight: "Alta" },
+                { topic: "Mordeduras y Ofidismo", count: 10, weight: "Media" }
+            ],
+            "Endocrinología": [
+                { topic: "Diabetes Mellitus", count: 61, weight: "Extrema" },
+                { topic: "Patología Tiroidea", count: 42, weight: "Muy Alta" },
+                { topic: "Trastornos del Calcio", count: 15, weight: "Media" },
+                { topic: "Patología Suprarrenal", count: 14, weight: "Media" },
+                { topic: "Eje Hipotálamo-Hipófisis", count: 12, weight: "Media" }
+            ]
+        };
+
+        // --- Mock Data for Preview ---
+        const MOCK_DATA = {
+            ENARM: [
+                { id: 1, name: "Simulacro Diagnóstico", correct: 62, total: 100, date: "10 Mar", breakdown: { Ciru: 55, Pedia: 60, Gineco: 65, Med: 50 } },
+                { id: 2, name: "RM 2024 - Fase 1", correct: 68, total: 100, date: "15 Mar", breakdown: { Ciru: 60, Pedia: 65, Gineco: 70, Med: 55 } },
+                { id: 3, name: "Intensivo Abril - 01", correct: 75, total: 100, date: "18 Mar", breakdown: { Ciru: 72, Pedia: 78, Gineco: 85, Med: 68 } }
+            ],
+            ENAM: [],
+            ENCAPS: []
+        };
+
+        // --- App State ---
+        let currentCategory = 'ENARM';
+        const apiKey = ""; 
+        let data = JSON.parse(localStorage.getItem('medtrack_data_v3')) || MOCK_DATA;
+        let masteredTopics = JSON.parse(localStorage.getItem('medtrack_mastered')) || { 'CirugíaGeneral_Patologíaapendicular': true };
+
+        // --- Charts ---
+        let mainChart, radarChart;
+
+        window.onload = () => {
+            initCharts();
+            updateDashboard();
+            setupExcelListener();
+            renderHighYield();
+        };
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-tab').forEach(btn => btn.classList.remove('tab-active'));
+            document.getElementById(`btn-${cat}`).classList.add('tab-active');
+            updateDashboard();
+        }
+
+        function toggleUploadModal() {
+            document.getElementById('uploadModal').classList.toggle('hidden');
+        }
+
+        function renderHighYield() {
+            const course = document.getElementById('yield-selector').value;
+            const container = document.getElementById('yield-container');
+            const topics = HIGH_YIELD_STATS[course] || [];
+            
+            container.innerHTML = topics.map(t => {
+                const topicId = `${course}_${t.topic}`.replace(/\s/g, '');
+                const isMastered = masteredTopics[topicId] || false;
+                return `
+                    <div class="card-high-yield bg-slate-50 border ${isMastered ? 'border-green-200 bg-green-50' : 'border-slate-100'} p-4 rounded-xl flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" ${isMastered ? 'checked' : ''} onchange="toggleMastered('${topicId}')" class="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+                            <div>
+                                <p class="text-xs font-bold ${isMastered ? 'text-green-700' : 'text-slate-700'}">${t.topic}</p>
+                                <p class="text-[10px] font-black text-slate-400 uppercase">${t.count} preguntas • ${t.weight}</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-star ${isMastered ? 'text-yellow-400' : 'text-slate-200'} text-xs"></i>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleMastered(topicId) {
+            masteredTopics[topicId] = !masteredTopics[topicId];
+            localStorage.setItem('medtrack_mastered', JSON.stringify(masteredTopics));
+            renderHighYield();
+        }
+
+        function updateDashboard() {
+            const currentData = data[currentCategory];
+            const tableBody = document.getElementById('simulacros-body');
+            tableBody.innerHTML = '';
+
+            if(currentData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-400 text-sm font-medium">No hay simulacros registrados.</td></tr>';
+                document.getElementById('stat-avg').innerText = '0.0%';
+                document.getElementById('stat-last').innerText = '0';
+                document.getElementById('stat-prob').innerText = '0%';
+                return;
+            }
+
+            let totalPct = 0;
+            currentData.forEach(s => {
+                const pct = ((s.correct / s.total) * 100).toFixed(1);
+                totalPct += parseFloat(pct);
+                
+                tableBody.innerHTML += `
+                    <tr class="hover:bg-slate-50 transition-all">
+                        <td class="px-4 py-4">
+                            <p class="font-bold text-slate-700">${s.name}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">${s.date}</p>
+                        </td>
+                        <td class="px-4 py-4 text-sm font-black">${s.correct}/${s.total}</td>
+                        <td class="px-4 py-4">
+                            <span class="text-xs font-black ${pct >= 75 ? 'text-blue-600' : 'text-orange-600'}">
+                                ${pct}%
+                            </span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div class="h-full ${pct >= 75 ? 'bg-blue-500' : 'bg-orange-400'}" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-right">
+                            <button onclick="deleteEntry(${s.id})" class="text-slate-300 hover:text-red-500 transition-all"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const avg = (totalPct / currentData.length).toFixed(1);
+            document.getElementById('stat-avg').innerText = `${avg}%`;
+            document.getElementById('stat-last').innerText = `${currentData[currentData.length-1].correct}/${currentData[currentData.length-1].total}`;
+            document.getElementById('stat-last-date').innerText = `Hace poco`;
+
+            const prob = Math.min(99, (parseFloat(avg) * 1.1)).toFixed(0);
+            document.getElementById('stat-prob').innerText = `${prob}%`;
+
+            updateCharts(currentData);
+        }
+
+        function saveManualEntry() {
+            const name = document.getElementById('manual-name').value;
+            const correct = parseInt(document.getElementById('manual-correct').value);
+            const total = parseInt(document.getElementById('manual-total').value);
+
+            if(!name || isNaN(correct)) return;
+
+            const entry = {
+                id: Date.now(),
+                name, correct, total,
+                date: new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'short' }),
+                breakdown: { Ciru: 65, Pedia: 70, Gineco: 75, Med: 60 }
+            };
+
+            data[currentCategory].push(entry);
+            saveAndRefresh();
+            toggleUploadModal();
+        }
+
+        function deleteEntry(id) {
+            data[currentCategory] = data[currentCategory].filter(e => e.id !== id);
+            saveAndRefresh();
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem('medtrack_data_v3', JSON.stringify(data));
+            updateDashboard();
+        }
+
+        function setupExcelListener() {
+            document.getElementById('excelInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const dataArr = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(dataArr, {type: 'array'});
+                    const firstSheet = workbook.SheetNames[0];
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+                    
+                    json.forEach(row => {
+                        data[currentCategory].push({
+                            id: Math.random(),
+                            name: row.Simulacro || `Sim ${data[currentCategory].length+1}`,
+                            correct: parseInt(row.Correctas) || 0,
+                            total: parseInt(row.Total || row['N° Preg'] || 100),
+                            date: new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'short' }),
+                            breakdown: { Ciru: 50, Pedia: 50, Gineco: 50, Med: 50 }
+                        });
+                    });
+                    saveAndRefresh();
+                    toggleUploadModal();
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // --- Charts Section ---
+        function initCharts() {
+            const mCtx = document.getElementById('mainChart').getContext('2d');
+            mainChart = new Chart(mCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#3b82f6', tension: 0.4, fill: true, backgroundColor: 'rgba(59, 130, 246, 0.05)', borderWidth: 3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+            });
+
+            const rCtx = document.getElementById('radarChart').getContext('2d');
+            radarChart = new Chart(rCtx, {
+                type: 'radar',
+                data: { labels: ['Ciru', 'Pedia', 'Gineco', 'Med', 'Infec'], datasets: [{ data: [0,0,0,0,0], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.2)' }] },
+                options: { scales: { r: { suggestedMin: 0, suggestedMax: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        function updateCharts(currentData) {
+            mainChart.data.labels = currentData.map(s => s.name);
+            mainChart.data.datasets[0].data = currentData.map(s => (s.correct/s.total)*100);
+            mainChart.update();
+
+            const last = currentData[currentData.length-1];
+            if(last.breakdown) {
+                radarChart.data.datasets[0].data = [last.breakdown.Ciru, last.breakdown.Pedia, last.breakdown.Gineco, last.breakdown.Med, 45];
+                radarChart.update();
+            }
+        }
+
+        // --- AI Strategic Analysis ---
+        async function runAIAnalysis() {
+            const stats = data[currentCategory];
+            if(stats.length === 0) return alert("Sube simulacros primero.");
+
+            const btn = document.getElementById('ai-btn');
+            const loader = document.getElementById('ai-loader');
+            const btnText = document.getElementById('ai-btn-text');
+            const insightBox = document.getElementById('ai-insight-text');
+
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+            btnText.innerText = "Consultando Estrategia...";
+
+            const summary = stats.map(s => `${s.name}: ${s.correct}/${s.total}`).join(", ");
+            const masteredCount = Object.values(masteredTopics).filter(v => v).length;
+            
+            const prompt = `Analiza mi rendimiento: ${summary}. He dominado ${masteredCount} temas clave. Dame un consejo de una frase y 3 puntos tácticos para subir mi puntaje esta semana. Usa un tono de mentor médico.`;
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                const result = await response.json();
+                insightBox.innerHTML = result.candidates?.[0]?.content?.parts?.[0]?.text.replace(/\n/g, '<br>') || "Error al procesar.";
+            } catch (e) {
+                insightBox.innerText = "Error de conexión con la IA.";
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+                btnText.innerText = "Actualizar Análisis";
+            }
+        }
+    </script>
+</body>
+</html>
